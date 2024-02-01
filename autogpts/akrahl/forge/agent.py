@@ -187,7 +187,10 @@ class ForgeAgent(Agent):
         # We don't actually use the output in this example
         output = await self.abilities.run_action(
             task_id, ability["name"], **ability["args"]
-        )      
+        )   
+
+        if ability["name"] == "finish":
+            step.is_last = True;   
 
         # Set the step output to the "speak" part of the answer
         step.output = answer["thoughts"]["speak"]
@@ -196,7 +199,7 @@ class ForgeAgent(Agent):
         if output is Artifact:
             step.artifacts.append(output)
 
-        await self.db.update_step(step.task_id, step.step_id, artifacts=step.artifacts, output=step.output, status=Status.completed.value)
+        await self.db.update_step(step.task_id, step.step_id, artifacts=step.artifacts, output=step.output, status=Status.completed.value, is_last=step.is_last)
 
         # Return the completed step
         return step
