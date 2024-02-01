@@ -4,7 +4,7 @@ from pathlib import Path
 import typing
 
 from google.cloud import storage
-
+from google.oauth2 import service_account
 
 class Workspace(abc.ABC):
     @classmethod
@@ -95,20 +95,29 @@ class GCSWorkspace(Workspace):
     def __init__(self, bucket_name: str, base_path: str = ""):
         self.bucket_name = bucket_name
         if base_path:
-            self.base_path = Path(base_path).resolve()
+            self.base_path = Path(base_path)
         else:
             raise Exception("Not basepath set")
-        self.storage_client = storage.Client()
+        cred_filepath = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if cred_filepath is None:
+            raise Exception("Not GOOGLE_APPLICATION_CREDENTIALS set")
+        project = os.getenv("GCE_PROJECT")
+        if project is None:
+            raise Exception("Not GCE_PROJECT set")
+
+        credentials = service_account.Credentials.from_service_account_file(Path(cred_filepath).resolve())    
+        self.storage_client = storage.Client(credentials=credentials, project=project)
         self.bucket = self.storage_client.get_bucket(self.bucket_name)
 
     def _resolve_path(self, task_id: str, path: str) -> Path:
         path = str(path)
         path = path if not path.startswith("/") else path[1:]
         abs_path = (self.base_path / task_id / path).resolve()
-        if not str(abs_path).startswith(str(self.base_path)):
+        gcs_path = os.path.relpath(abs_path, os.getcwd())
+        if not gcs_path.startswith(str(self.base_path)):
             print("Error")
-            raise ValueError(f"Directory traversal is not allowed! - {abs_path}")
-        return abs_path
+            raise ValueError(f"Directory traversal is not allowed! - {gcs_path}")
+        return Path(gcs_path)
 
     def read(self, task_id: str, path: str) -> bytes:
         blob = self.bucket.blob(self._resolve_path(task_id, path))
@@ -117,13 +126,13 @@ class GCSWorkspace(Workspace):
         return blob.download_as_bytes()
 
     def write(self, task_id: str, path: str, data: bytes) -> None:
-        blob = self.bucket.blob(self._resolve_path(task_id, path))
+        blob = self.bucket.blob(self._resolve_path(task_id, path).as_posix())
         blob.upload_from_string(data)
 
     def delete(self, task_id: str, path: str, directory=False, recursive=False):
         if directory and not recursive:
             raise ValueError("recursive must be True when deleting a directory")
-        blob = self.bucket.blob(self._resolve_path(task_id, path))
+        blob = self.bucket.blob(self._resolve_path(task_id, path).as_posix())
         if not blob.exists():
             return
         if directory:
@@ -133,7 +142,7 @@ class GCSWorkspace(Workspace):
             blob.delete()
 
     def exists(self, task_id: str, path: str) -> bool:
-        blob = self.bucket.blob(self._resolve_path(task_id, path))
+        blob = self.bucket.blob(self._resolve_path(task_id, path).as_posix())
         return blob.exists()
 
     def list(self, task_id: str, path: str) -> typing.List[str]:

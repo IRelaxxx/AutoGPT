@@ -1,22 +1,22 @@
 import os
 
 from forge.agent import ForgeAgent
-from forge.sdk import LocalWorkspace
 
-from .db import ForgeDatabase
+from forge.db import ForgeDatabase
+from forge.sdk.workspace import GCSWorkspace
 
 dbString = os.getenv("DATABASE_STRING")
-workspace_dir = os.getenv("AGENT_WORKSPACE")
+bucket_name = os.getenv("BUCKET_NAME")
 
 if not dbString:
     raise Exception("Missing DATABASE_STRING")
 
-if not workspace_dir:
-    raise Exception("Missing AGENT_WORKSPACE")
+if not bucket_name:
+    raise Exception("Missing BUCKET_NAME")
 
 
 database_name = dbString
-workspace = LocalWorkspace(workspace_dir)
+workspace = GCSWorkspace(bucket_name, base_path="workspace")
 database = ForgeDatabase(database_name, debug_enabled=False)
 agent = ForgeAgent(database=database, workspace=workspace)
 

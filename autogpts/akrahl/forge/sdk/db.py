@@ -43,7 +43,6 @@ class TaskModel(Base):
     )
 
     artifacts = relationship("ArtifactModel", back_populates="task")
-    steps = relationship("StepModel", back_populates="task")
 
 
 class StepModel(Base):
@@ -64,7 +63,6 @@ class StepModel(Base):
     additional_input = mapped_column(JSON)
     additional_output = mapped_column(JSON)
     artifacts = relationship("ArtifactModel", back_populates="step")
-    task = relationship("TaskModel", back_populates="steps")
 
 
 class ArtifactModel(Base):
@@ -343,6 +341,7 @@ class AgentDB:
         additional_input: Optional[Dict[str, Any]] = None,
         additional_output: Optional[Dict[str, Any]] = None,
         artifacts: Optional[List[Artifact]] = None,
+        is_last: Optional[bool] = None,
     ) -> Step:
         if self.debug_enabled:
             LOG.debug(f"Updating step with task_id: {task_id} and step_id: {step_id}")
@@ -363,7 +362,9 @@ class AgentDB:
                         step.additional_output = additional_output
                     if artifacts is not None:
                         step.artifacts = artifacts
-
+                    if is_last is not None:
+                        step.is_last = is_last
+                        
                     session.commit()
                     return await self.get_step(task_id, step_id)
                 else:
